@@ -1,0 +1,9 @@
+venv/
+__pycache__/
+*.pyc
+gigu_brain.db
+fotos/
+ocr_bruto/
+obsidian_notas/
+logs/
+.env

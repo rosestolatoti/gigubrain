@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GigU Brain</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+  <header>
+    <div class="logo">
+      <span class="logo-icon">🧠</span>
+      <span class="logo-text">GigU <strong>Brain</strong></span>
+    </div>
+    <div class="header-stats">
+      <span id="stat-fotos">— fotos</span>
+      <span id="stat-palavras">— palavras</span>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- UPLOAD -->
+    <section class="card" id="section-upload">
+      <h2>Upload de Fotos</h2>
+      <div class="upload-area" id="upload-area">
+        <input type="file" id="input-fotos" multiple accept="image/*" hidden>
+        <div class="upload-placeholder" id="upload-placeholder">
+          <span class="upload-icon">📁</span>
+          <p>Arraste fotos aqui ou <button onclick="document.getElementById('input-fotos').click()">selecione</button></p>
+          <small>Máximo 5 fotos por vez · JPG, PNG, WEBP</small>
+        </div>
+        <div class="upload-preview" id="upload-preview"></div>
+        <button class="btn-primary" id="btn-upload" style="display:none">Enviar Fotos</button>
+      </div>
+    </section>
+
+    <!-- GALERIA -->
+    <section class="card" id="section-galeria">
+      <div class="section-header">
+        <h2>Galeria</h2>
+        <div class="filtros">
+          <button class="filtro-btn ativo" data-status="todos">Todas</button>
+          <button class="filtro-btn" data-status="pendente">Pendentes</button>
+          <button class="filtro-btn" data-status="ocr_feito">Processadas</button>
+        </div>
+      </div>
+      <div class="galeria-grid" id="galeria-grid">
+        <div class="loading">Carregando fotos...</div>
+      </div>
+    </section>
+
+    <!-- PAINEL OCR -->
+    <section class="card" id="section-ocr" style="display:none">
+      <div class="section-header">
+        <h2>Foto <span id="ocr-numero"></span></h2>
+        <button class="btn-fechar" onclick="fecharOCR()">✕</button>
+      </div>
+      <div class="ocr-layout">
+        <div class="ocr-imagem">
+          <img id="ocr-img" src="" alt="Foto selecionada">
+        </div>
+        <div class="ocr-texto">
+          <div class="ocr-acoes">
+            <button class="btn-primary" id="btn-extrair">⚡ Extrair Texto</button>
+            <button class="btn-secondary" id="btn-limpar-texto" style="display:none">🧹 Limpar Seleção</button>
+            <button class="btn-success" id="btn-salvar-texto" style="display:none">💾 Salvar</button>
+          </div>
+          <div class="ocr-status" id="ocr-status"></div>
+          <textarea id="ocr-area" placeholder="O texto extraído aparecerá aqui..."></textarea>
+        </div>
+      </div>
+    </section>
+
+    <!-- BRAIN MAP -->
+    <section class="card" id="section-brain">
+      <div class="section-header">
+        <h2>🧠 Brain Map</h2>
+        <button class="btn-secondary" onclick="carregarPalavras()">↻ Atualizar</button>
+      </div>
+      <div class="grupos-filtro" id="grupos-filtro"></div>
+      <div class="word-cloud" id="word-cloud">
+        <p class="empty">Processe fotos para construir o Brain Map</p>
+      </div>
+      <div class="top-palavras" id="top-palavras"></div>
+    </section>
+
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

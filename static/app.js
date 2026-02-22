@@ -1,12 +1,11 @@
-let fotoAtual = null;
 let todasFotos = [];
-let arquivosParaUpload = [];
+let fotosNaFila = [];
 let filtroStatus = "todos";
 
 document.addEventListener("DOMContentLoaded", () => {
   const temaSalvo = localStorage.getItem("gigu-tema") || "light";
   document.documentElement.setAttribute("data-theme", temaSalvo);
-  document.getElementById("theme-icon").textContent = temaSalvo === "dark" ? "☀️" : "🌙";
+  document.getElementById("theme-icon").textContent = temaSalvo === "dark" ? "🌙" : "☀️";
   
   carregarFotos();
   carregarPalavras();
@@ -14,17 +13,17 @@ document.addEventListener("DOMContentLoaded", () => {
   setupUpload();
 });
 
-function atualizarStats(fotos, palavras) {
-  document.getElementById("stat-fotos").textContent = `${fotos} fotos`;
-  document.getElementById("stat-palavras").textContent = `${palavras} palavras`;
-}
-
 function toggleTheme() {
   const atual = document.documentElement.getAttribute("data-theme");
   const novo = atual === "dark" ? "light" : "dark";
   document.documentElement.setAttribute("data-theme", novo);
   localStorage.setItem("gigu-tema", novo);
-  document.getElementById("theme-icon").textContent = novo === "dark" ? "☀️" : "🌙";
+  document.getElementById("theme-icon").textContent = novo === "dark" ? "🌙" : "☀️";
+}
+
+function atualizarStats(fotos, palavras) {
+  document.getElementById("stat-fotos").textContent = `${fotos} fotos`;
+  document.getElementById("stat-palavras").textContent = `${palavras} palavras`;
 }
 
 function trocarAba(aba, el) {
@@ -32,7 +31,6 @@ function trocarAba(aba, el) {
   document.querySelectorAll(".tab-content").forEach(c => c.style.display = "none");
   if (el) el.classList.add("active");
   document.getElementById(`tab-${aba}`).style.display = "block";
-
   if (aba === "brain") carregarPalavras();
 }
 
@@ -57,237 +55,179 @@ async function carregarFotos() {
 
 function renderGaleria() {
   const grid = document.getElementById("galeria-grid");
-  
-  let fotos = todasFotos;
-  if (filtroStatus !== "todos") {
-    fotos = todasFotos.filter(f => f.status === filtroStatus);
-  }
+  let fotos = filtroStatus === "todos" ? todasFotos : todasFotos.filter(f => f.status === filtroStatus);
 
   if (!fotos.length) {
-    grid.innerHTML = `
-      <div class="empty-state">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
-          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-          <circle cx="8.5" cy="8.5" r="1.5"/>
-          <polyline points="21 15 16 10 5 21"/>
-        </svg>
-        <p>Nenhuma foto encontrada</p>
-      </div>`;
+    grid.innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg><p>Nenhuma foto encontrada</p></div>`;
     return;
   }
 
   grid.innerHTML = fotos.map(f => `
-    <div class="foto-card" onclick="abrirFoto('${f.numero}')">
+    <div class="foto-card" draggable="true" ondragstart="handleDragStart(event, '${f.numero}')">
       <img src="/api/foto/imagem/${f.numero}" alt="Foto ${f.numero}" loading="lazy" onerror="this.style.display='none'">
       <div class="foto-card-info">
         <span class="foto-numero">#${f.numero}</span>
-        <span class="foto-status-badge ${f.status === 'ocr_feito' ? 'done' : 'pending'}">
-          ${f.status === 'ocr_feito' ? 'Processado' : 'Pendente'}
-        </span>
+        <span class="foto-status-badge ${f.status === 'ocr_feito' ? 'status-ocr_feito' : 'status-pendente'}">${f.status === 'ocr_feito' ? '✓' : '...'}</span>
       </div>
     </div>
   `).join("");
 }
 
-async function abrirFoto(numero) {
-  fotoAtual = numero;
-  try {
-    const foto = await fetch(`/api/foto/${numero}`).then(r => r.json());
+let dragNumero = null;
 
-    document.getElementById("modal-ocr").style.display = "flex";
-    document.body.style.overflow = "hidden";
-
-    document.getElementById("ocr-numero").textContent = `#${numero}`;
-    document.getElementById("ocr-status-badge").textContent = foto.status === 'ocr_feito' ? 'Processado' : 'Pendente';
-    document.getElementById("ocr-status-badge").className = `foto-status-badge ${foto.status === 'ocr_feito' ? 'done' : 'pending'}`;
-    document.getElementById("ocr-img").src = `/api/foto/imagem/${numero}`;
-    document.getElementById("ocr-area").value = foto.ocr_limpo || foto.ocr_texto || "";
-    document.getElementById("ocr-status").textContent = "";
-
-    const temTexto = !!(foto.ocr_limpo || foto.ocr_texto);
-    document.getElementById("btn-limpar").style.display = temTexto ? "flex" : "none";
-    document.getElementById("btn-salvar").style.display = temTexto ? "flex" : "none";
-  } catch (e) {
-    console.error("Erro ao abrir foto:", e);
-  }
+function handleDragStart(e, numero) {
+  dragNumero = numero;
+  e.dataTransfer.setData("text/plain", numero);
 }
 
-function fecharOCR() {
-  document.getElementById("modal-ocr").style.display = "none";
-  document.body.style.overflow = "";
-  fotoAtual = null;
+function handleGaleriaDrop(e) {
+  e.preventDefault();
+  const numero = e.dataTransfer.getData("text/plain") || dragNumero;
+  if (numero) adicionarFilaOCR(numero);
+  dragNumero = null;
 }
 
-function navegarFoto(direcao) {
-  const idx = todasFotos.findIndex(f => f.numero === fotoAtual);
-  const novoIdx = idx + direcao;
-  if (novoIdx >= 0 && novoIdx < todasFotos.length) {
-    abrirFoto(todasFotos[novoIdx].numero);
-  }
-}
-
-async function extrairOCR() {
-  if (!fotoAtual) return;
+function adicionarFilaOCR(numero) {
+  if (fotosNaFila.find(f => f.numero === numero)) return;
   
-  const btn = document.getElementById("btn-extrair");
-  const status = document.getElementById("ocr-status");
+  const foto = todasFotos.find(f => f.numero === numero);
+  if (!foto) return;
+  
+  fotosNaFila.push({ numero: numero, status: "pendente", texto: "" });
+  renderFilaOCR();
+}
 
-  btn.disabled = true;
-  btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Processando...`;
+function renderFilaOCR() {
+  const queue = document.getElementById("ocr-queue");
+  
+  if (!fotosNaFila.length) {
+    queue.innerHTML = `<div class="ocr-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg><p>Arraste fotos da galeria para esta área</p><span>ou clique para selecionar</span></div>`;
+    return;
+  }
+  
+  queue.innerHTML = fotosNaFila.map((f, idx) => `
+    <div class="ocr-item" data-numero="${f.numero}">
+      <div class="ocr-item-col1">
+        <img class="ocr-item-img" src="/api/foto/imagem/${f.numero}" alt="Foto ${f.numero}">
+        <div class="ocr-item-btns">
+          <button class="btn-ocr" onclick="processarOCR('${f.numero}')" ${f.status === 'processando' ? 'disabled' : ''}>
+            ${f.status === 'processando' ? '⏳ Processando...' : '⚡ Extrair Texto'}
+          </button>
+          <button class="btn-limpar" onclick="limparTexto('${f.numero}')" ${!f.texto ? 'disabled' : ''}>🧹 Limpar</button>
+          <button class="btn-salvar" onclick="salvarOCR('${f.numero}')" ${!f.texto ? 'disabled' : ''}>💾 Salvar</button>
+        </div>
+      </div>
+      <div class="ocr-item-col2">
+        <textarea id="ocr-textarea-${f.numero}" placeholder="O texto extraído aparecerá aqui...">${f.texto}</textarea>
+        <div class="ocr-status" id="ocr-status-${f.numero}"></div>
+      </div>
+    </div>
+  `).join("");
+}
 
-  status.textContent = "Extraindo texto...";
-
+async function processarOCR(numero) {
+  const item = fotosNaFila.find(f => f.numero === numero);
+  if (!item) return;
+  
+  item.status = "processando";
+  renderFilaOCR();
+  
+  const statusEl = document.getElementById(`ocr-status-${numero}`);
+  statusEl.textContent = "Processando OCR...";
+  statusEl.className = "ocr-status";
+  
   try {
-    const res = await fetch(`/api/ocr/${fotoAtual}`, { method: "POST" });
+    const res = await fetch(`/api/ocr/${numero}`, { method: "POST" });
     const data = await res.json();
-
+    
     if (data.sucesso) {
-      document.getElementById("ocr-area").value = data.texto_limpo;
-      status.textContent = `✓ ${data.caracteres} caracteres extraídos`;
-      document.getElementById("btn-limpar").style.display = "flex";
-      document.getElementById("btn-salvar").style.display = "flex";
+      item.texto = data.texto_limpo;
+      item.status = "pronto";
+      document.getElementById(`ocr-textarea-${numero}`).value = data.texto_limpo;
+      statusEl.textContent = `✓ ${data.caracteres} caracteres extraídos`;
+      statusEl.className = "ocr-status sucesso";
+      
       carregarFotos();
       carregarPalavras();
     } else {
-      status.textContent = `Erro: ${data.erro}`;
-      status.style.color = "var(--danger)";
+      statusEl.textContent = `Erro: ${data.erro}`;
+      statusEl.className = "ocr-status erro";
+      item.status = "erro";
     }
   } catch (e) {
-    status.textContent = "Erro de conexão";
-    status.style.color = "var(--danger)";
+    statusEl.textContent = "Erro de conexão";
+    statusEl.className = "ocr-status erro";
+    item.status = "erro";
   }
-
-  btn.disabled = false;
-  btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Extrair Texto`;
+  
+  renderFilaOCR();
 }
 
-function limparTexto() {
-  const area = document.getElementById("ocr-area");
-  const linhas = area.value.split("\n");
+function limparTexto(numero) {
+  const item = fotosNaFila.find(f => f.numero === numero);
+  if (!item) return;
+  
+  const textarea = document.getElementById(`ocr-textarea-${numero}`);
+  const linhas = textarea.value.split("\n");
   const limpas = linhas
     .map(l => l.trim())
     .filter(l => l.length > 2)
     .filter(l => !/^\d{1,2}:\d{2}/.test(l))
     .filter(l => !/^[<>|]{2,}$/.test(l))
-    .filter(l => !/(Publicar|Seguir|Curtir|Salvo)/i.test(l));
-  area.value = limpas.join("\n");
-  document.getElementById("ocr-status").textContent = "✓ Texto limpo";
+    .filter(l => !/(Publicar|Seguir|Curtir|Salvo|YouTube|Instagram)/i.test(l));
+  
+  item.texto = limpas.join("\n");
+  textarea.value = item.texto;
+  
+  const statusEl = document.getElementById(`ocr-status-${numero}`);
+  statusEl.textContent = "✓ Texto limpo";
+  statusEl.className = "ocr-status sucesso";
 }
 
-async function salvarTexto() {
-  if (!fotoAtual) return;
+async function salvarOCR(numero) {
+  const item = fotosNaFila.find(f => f.numero === numero);
+  if (!item) return;
   
-  const texto = document.getElementById("ocr-area").value;
+  const texto = document.getElementById(`ocr-textarea-${numero}`).value;
+  
   try {
-    await fetch(`/api/ocr/${fotoAtual}/salvar`, {
+    await fetch(`/api/ocr/${numero}/salvar`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ texto })
     });
-    document.getElementById("ocr-status").textContent = "💾 Salvo com sucesso!";
+    
+    const statusEl = document.getElementById(`ocr-status-${numero}`);
+    statusEl.textContent = "💾 Salvo!";
+    statusEl.className = "ocr-status sucesso";
+    
+    carregarFotos();
+    carregarPalavras();
   } catch (e) {
-    document.getElementById("ocr-status").textContent = "Erro ao salvar";
-  }
-}
-
-async function deletarFoto() {
-  if (!fotoAtual) return;
-  if (!confirm(`Deletar foto #${fotoAtual}? Esta ação não pode ser desfeita.`)) return;
-
-  try {
-    const res = await fetch(`/api/foto/${fotoAtual}`, { method: "DELETE" });
-    const data = await res.json();
-    if (data.sucesso) {
-      fecharOCR();
-      await carregarFotos();
-      await carregarPalavras();
-    }
-  } catch (e) {
-    console.error("Erro ao deletar:", e);
+    const statusEl = document.getElementById(`ocr-status-${numero}`);
+    statusEl.textContent = "Erro ao salvar";
+    statusEl.className = "ocr-status erro";
   }
 }
 
 function setupUpload() {
-  const zone = document.getElementById("upload-zone");
   const input = document.getElementById("input-fotos");
-
-  zone.addEventListener("dragover", e => {
-    e.preventDefault();
-    zone.classList.add("drag-over");
-  });
-  zone.addEventListener("dragleave", () => zone.classList.remove("drag-over"));
-  zone.addEventListener("drop", e => {
-    e.preventDefault();
-    zone.classList.remove("drag-over");
-    adicionarArquivos([...e.dataTransfer.files]);
-  });
-
   input.addEventListener("change", () => adicionarArquivos([...input.files]));
 }
 
 function adicionarArquivos(files) {
   const validos = files.filter(f => f.type.startsWith("image/"));
-  const total = arquivosParaUpload.length + validos.length;
-
-  if (total > 5) {
-    alert("Máximo 5 fotos por vez");
-    return;
-  }
-
-  arquivosParaUpload.push(...validos);
-  renderPreview();
-}
-
-function renderPreview() {
-  const content = document.getElementById("upload-content");
-  const previewArea = document.getElementById("upload-preview-area");
-  const previewGrid = document.getElementById("preview-grid");
-
-  if (!arquivosParaUpload.length) {
-    content.style.display = "block";
-    previewArea.style.display = "none";
-    return;
-  }
-
-  content.style.display = "none";
-  previewArea.style.display = "block";
-
-  previewGrid.innerHTML = arquivosParaUpload.map((f, i) => {
-    const url = URL.createObjectURL(f);
-    return `<img src="${url}" alt="${f.name}" onclick="removerArquivo(${i})">`;
-  }).join("");
-}
-
-function removerArquivo(idx) {
-  arquivosParaUpload.splice(idx, 1);
-  renderPreview();
-}
-
-async function enviarFotos() {
-  if (!arquivosParaUpload.length) return;
-
-  const btn = document.getElementById("btn-upload");
-  btn.disabled = true;
-  btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Enviando...`;
-
+  if (!validos.length) return;
+  
   const form = new FormData();
-  arquivosParaUpload.forEach(f => form.append("fotos", f));
-
-  try {
-    const res = await fetch("/api/upload", { method: "POST", body: form });
-    const data = await res.json();
-    arquivosParaUpload = [];
-    renderPreview();
-    carregarFotos();
-    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Enviado!`;
-    setTimeout(() => {
-      btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Enviar Fotos`;
-      btn.disabled = false;
-    }, 2000);
-  } catch (e) {
-    btn.innerHTML = `Erro no envio`;
-    btn.disabled = false;
-  }
+  validos.forEach(f => form.append("fotos", f));
+  
+  fetch("/api/upload", { method: "POST", body: form })
+    .then(r => r.json())
+    .then(data => {
+      carregarFotos();
+    })
+    .catch(e => console.error("Erro no upload:", e));
 }
 
 const CORES = ["#007aff", "#34c759", "#ff9500", "#ff3b30", "#af52de", "#00c7be", "#ff2d55", "#5856d6", "#ffcc00"];
@@ -295,43 +235,28 @@ const CORES = ["#007aff", "#34c759", "#ff9500", "#ff3b30", "#af52de", "#00c7be",
 async function carregarPalavras() {
   try {
     const palavras = await fetch("/api/palavras?limit=80").then(r => r.json());
-    if (!palavras.length) return;
-
+    if (!palavras.length) {
+      atualizarStats(todasFotos.length, 0);
+      return;
+    }
+    
     const max = palavras[0].contagem;
     const cloud = document.getElementById("word-cloud");
-
+    
     cloud.innerHTML = palavras.map((p, i) => {
-      const tamanho = 12 + Math.round((p.contagem / max) * 20);
+      const tamanho = 12 + Math.round((p.contagem / max) * 18);
       const cor = CORES[i % CORES.length];
-      const fotos = JSON.parse(p.fotos_ids || "[]").join(", ");
-      return `<span class="word-tag" 
-        style="font-size:${tamanho}px; background:${cor}15; color:${cor}; border:1px solid ${cor}30"
-        title="Aparece ${p.contagem}x — Fotos: ${fotos}"
-        onclick="filtrarPorPalavra('${p.palavra}')">
-        ${p.palavra}
-      </span>`;
+      return `<span class="word-tag" style="font-size:${tamanho}px; background:${cor}15; color:${cor}; border:1px solid ${cor}30">${p.palavra}</span>`;
     }).join("");
-
+    
     const top = document.getElementById("top-palavras");
-    top.innerHTML = palavras.slice(0, 30).map(p => {
-      const fotos = JSON.parse(p.fotos_ids || "[]");
-      return `<div class="palavra-item" title="Fotos: ${fotos.join(', ')}">
-        <span>${p.palavra}</span>
-        <span class="count">${p.contagem}×</span>
-      </div>`;
-    }).join("");
-
+    top.innerHTML = palavras.slice(0, 20).map(p => `<div class="palavra-item"><span>${p.palavra}</span><span class="count">${p.contagem}</span></div>`).join("");
+    
     const sidebarTop = document.getElementById("top-palavras-sidebar");
     if (sidebarTop) {
-      sidebarTop.innerHTML = palavras.slice(0, 10).map(p => {
-        const fotos = JSON.parse(p.fotos_ids || "[]");
-        return `<div class="palavra-item" title="Fotos: ${fotos.join(', ')}">
-          <span>${p.palavra}</span>
-          <span class="count">${p.contagem}</span>
-        </div>`;
-      }).join("");
+      sidebarTop.innerHTML = palavras.slice(0, 10).map(p => `<div class="palavra-item"><span>${p.palavra}</span><span class="count">${p.contagem}</span></div>`).join("");
     }
-
+    
     atualizarStats(todasFotos.length, palavras.length);
   } catch (e) {
     console.error("Erro ao carregar palavras:", e);
@@ -342,68 +267,239 @@ async function carregarGrupos() {
   try {
     const grupos = await fetch("/api/grupos").then(r => r.json());
     const container = document.getElementById("grupos-filtro");
-    container.innerHTML = `<div class="grupo-item active" onclick="filtrarGrupo(null, this)">Todos</div>` +
-      grupos.map(g => `
-        <div class="grupo-item" style="border-left: 3px solid ${g.cor}" onclick="filtrarGrupo('${g.nome}', this)">
-          ${g.nome}
-        </div>`).join("");
+    container.innerHTML = `<div class="grupo-item active">Todos</div>` +
+      grupos.map(g => `<div class="grupo-item" style="border-left:3px solid ${g.cor}">${g.nome}</div>`).join("");
   } catch (e) {
     console.error("Erro ao carregar grupos:", e);
   }
 }
 
-function filtrarGrupo(nome, el) {
-  document.querySelectorAll(".grupo-item").forEach(b => b.classList.remove("active"));
-  el.classList.add("active");
+let currentPhotoNumero = null;
+
+function handlePhotoSelect(input) {
+  const file = input.files[0];
+  if (!file) return;
+  
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = document.getElementById("preview-img");
+    const dropText = document.getElementById("drop-text");
+    
+    img.src = e.target.result;
+    img.style.display = "block";
+    dropText.style.display = "none";
+    
+    document.getElementById("btn-extrair").disabled = false;
+  };
+  reader.readAsDataURL(file);
 }
 
-function filtrarPorPalavra(palavra) {
-  const filtradas = todasFotos.filter(f => {
-    const texto = (f.ocr_limpo || f.ocr_texto || "").toLowerCase();
-    return texto.includes(palavra);
-  });
-  
-  document.getElementById("galeria-grid").innerHTML = filtradas.map(f => `
-    <div class="foto-card" onclick="abrirFoto('${f.numero}')">
-      <img src="/api/foto/imagem/${f.numero}" alt="Foto ${f.numero}" loading="lazy" onerror="this.style.display='none'">
-      <div class="foto-card-info">
-        <span class="foto-numero">#${f.numero}</span>
-        <span class="foto-status-badge ${f.status === 'ocr_feito' ? 'done' : 'pending'}">
-          ${f.status === 'ocr_feito' ? 'Processado' : 'Pendente'}
-        </span>
-      </div>
-    </div>
-  `).join("");
-  
-  document.querySelectorAll(".tab")[0].click();
+function handleDragOver(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  document.getElementById("photo-drop").classList.add("drag-over");
 }
 
-let buscaTimeout = null;
+function handleDragLeave(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  document.getElementById("photo-drop").classList.remove("drag-over");
+}
 
-function buscarFotos(termo) {
-  clearTimeout(buscaTimeout);
-  buscaTimeout = setTimeout(async () => {
-    if (termo.length < 2) {
-      renderGaleria();
+function handleDrop(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  document.getElementById("photo-drop").classList.remove("drag-over");
+  
+  const files = e.dataTransfer.files;
+  if (files.length > 0) {
+    const file = files[0];
+    if (file.type.startsWith("image/")) {
+      const input = document.getElementById("photo-input");
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      input.files = dt.files;
+      handlePhotoSelect(input);
+    }
+  } else {
+    const numero = e.dataTransfer.getData("text/plain");
+    if (numero) {
+      loadPhotoFromGallery(numero);
+    }
+  }
+}
+
+async function runOCRForPhoto(numero) {
+  const statusEl = document.getElementById("ocr-status");
+  const btnExtrair = document.getElementById("btn-extrair");
+  const btnLimpar = document.getElementById("btn-limpar");
+  const btnSalvar = document.getElementById("btn-salvar");
+  const textarea = document.getElementById("ocr-text");
+  
+  btnExtrair.disabled = true;
+  btnExtrair.textContent = "⏳ Processando...";
+  statusEl.textContent = "Executando OCR...";
+  statusEl.className = "ocr-status";
+  
+  try {
+    const ocrRes = await fetch(`/api/ocr/${numero}`, { method: "POST" });
+    const ocrData = await ocrRes.json();
+    
+    if (ocrData.sucesso) {
+      textarea.value = ocrData.texto_limpo;
+      statusEl.textContent = `✓ ${ocrData.caracteres} caracteres extraídos`;
+      statusEl.className = "ocr-status sucesso";
+      btnLimpar.disabled = false;
+      btnSalvar.disabled = false;
+      carregarFotos();
+      carregarPalavras();
+    } else {
+      statusEl.textContent = `Erro: ${ocrData.erro}`;
+      statusEl.className = "ocr-status erro";
+    }
+  } catch (e) {
+    statusEl.textContent = "Erro de conexão";
+    statusEl.className = "ocr-status erro";
+  }
+  
+  btnExtrair.disabled = false;
+  btnExtrair.textContent = "⚡ Extrair Texto";
+}
+
+async function executarOCR() {
+  const input = document.getElementById("photo-input");
+  const file = input.files[0];
+  
+  if (!file && !currentPhotoNumero) return;
+  
+  if (currentPhotoNumero && !file) {
+    // Photo from gallery - run OCR directly
+    await runOCRForPhoto(currentPhotoNumero);
+    return;
+  }
+  
+  const statusEl = document.getElementById("ocr-status");
+  const btnExtrair = document.getElementById("btn-extrair");
+  const btnLimpar = document.getElementById("btn-limpar");
+  const btnSalvar = document.getElementById("btn-salvar");
+  const textarea = document.getElementById("ocr-text");
+  
+  btnExtrair.disabled = true;
+  btnExtrair.textContent = "⏳ Processando...";
+  statusEl.textContent = "Enviando foto...";
+  statusEl.className = "ocr-status";
+  
+  try {
+    const formData = new FormData();
+    formData.append("fotos", file);
+    
+    const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
+    const uploadData = await uploadRes.json();
+    
+    if (!uploadData.resultados || !uploadData.resultados[0].sucesso) {
+      const erro = uploadData.resultados?.[0]?.erro || "Erro no upload";
+      statusEl.textContent = erro;
+      statusEl.className = "ocr-status erro";
+      btnExtrair.disabled = false;
+      btnExtrair.textContent = "⚡ Extrair Texto";
       return;
     }
-    try {
-      const res = await fetch(`/api/buscar?q=${encodeURIComponent(termo)}`);
-      const resultados = await res.json();
-      
-      document.getElementById("galeria-grid").innerHTML = resultados.map(f => `
-        <div class="foto-card" onclick="abrirFoto('${f.numero}')">
-          <img src="/api/foto/imagem/${f.numero}" alt="Foto ${f.numero}" loading="lazy" onerror="this.style.display='none'">
-          <div class="foto-card-info">
-            <span class="foto-numero">#${f.numero}</span>
-            <span class="foto-status-badge ${f.status === 'ocr_feito' ? 'done' : 'pending'}">
-              ${f.status === 'ocr_feito' ? 'Processado' : 'Pendente'}
-            </span>
-          </div>
-        </div>
-      `).join("");
-    } catch (e) {
-      console.error("Erro na busca:", e);
+    
+    currentPhotoNumero = uploadData.resultados[0].numero;
+    statusEl.textContent = "Executando OCR...";
+    
+    const ocrRes = await fetch(`/api/ocr/${currentPhotoNumero}`, { method: "POST" });
+    const ocrData = await ocrRes.json();
+    
+    if (ocrData.sucesso) {
+      textarea.value = ocrData.texto_limpo;
+      statusEl.textContent = `✓ ${ocrData.caracteres} caracteres extraídos`;
+      statusEl.className = "ocr-status sucesso";
+      btnLimpar.disabled = false;
+      btnSalvar.disabled = false;
+      carregarFotos();
+      carregarPalavras();
+    } else {
+      statusEl.textContent = `Erro: ${ocrData.erro}`;
+      statusEl.className = "ocr-status erro";
     }
-  }, 300);
+  } catch (e) {
+    statusEl.textContent = "Erro de conexão";
+    statusEl.className = "ocr-status erro";
+  }
+  
+  btnExtrair.disabled = false;
+  btnExtrair.textContent = "⚡ Extrair Texto";
+}
+
+function limparTexto() {
+  const textarea = document.getElementById("ocr-text");
+  const linhas = textarea.value.split("\n");
+  const limpas = linhas
+    .map(l => l.trim())
+    .filter(l => l.length > 2)
+    .filter(l => !/^\d{1,2}:\d{2}/.test(l))
+    .filter(l => !/^[<>|]{2,}$/.test(l))
+    .filter(l => !/(Publicar|Seguir|Curtir|Salvo|YouTube|Instagram|Facebook)/i.test(l));
+  
+  textarea.value = limpas.join("\n");
+  
+  const statusEl = document.getElementById("ocr-status");
+  statusEl.textContent = "✓ Texto limpo";
+  statusEl.className = "ocr-status sucesso";
+}
+
+async function salvarTexto() {
+  if (!currentPhotoNumero) return;
+  
+  const textarea = document.getElementById("ocr-text");
+  const texto = textarea.value;
+  const statusEl = document.getElementById("ocr-status");
+  
+  try {
+    await fetch(`/api/ocr/${currentPhotoNumero}/salvar`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ texto })
+    });
+    
+    statusEl.textContent = "💾 Salvo!";
+    statusEl.className = "ocr-status sucesso";
+    carregarFotos();
+    carregarPalavras();
+  } catch (e) {
+    statusEl.textContent = "Erro ao salvar";
+    statusEl.className = "ocr-status erro";
+  }
+}
+
+function loadPhotoFromGallery(numero) {
+  const img = document.getElementById("preview-img");
+  const dropText = document.getElementById("drop-text");
+  
+  img.src = `/api/foto/imagem/${numero}`;
+  img.style.display = "block";
+  dropText.style.display = "none";
+  
+  currentPhotoNumero = numero;
+  document.getElementById("btn-extrair").disabled = false;
+  document.getElementById("ocr-status").textContent = `Foto #${numero} carregada`;
+}
+
+function clearPhoto() {
+  const img = document.getElementById("preview-img");
+  const dropText = document.getElementById("drop-text");
+  const input = document.getElementById("photo-input");
+  
+  img.src = "";
+  img.style.display = "none";
+  dropText.style.display = "flex";
+  input.value = "";
+  
+  currentPhotoNumero = null;
+  document.getElementById("btn-extrair").disabled = true;
+  document.getElementById("ocr-text").value = "";
+  document.getElementById("btn-limpar").disabled = true;
+  document.getElementById("btn-salvar").disabled = true;
+  document.getElementById("ocr-status").textContent = "";
 }

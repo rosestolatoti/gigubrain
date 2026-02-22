@@ -17,76 +17,104 @@
       <span id="stat-fotos">— fotos</span>
       <span id="stat-palavras">— palavras</span>
     </div>
+    <button class="btn-tema" onclick="toggleThema()" id="btn-tema" title="Alternar tema">
+      <span id="tema-icon">🌙</span>
+    </button>
   </header>
 
   <main>
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
 
-    <!-- UPLOAD -->
-    <section class="card" id="section-upload">
-      <h2>Upload de Fotos</h2>
-      <div class="upload-area" id="upload-area">
-        <input type="file" id="input-fotos" multiple accept="image/*" hidden>
-        <div class="upload-placeholder" id="upload-placeholder">
-          <span class="upload-icon">📁</span>
-          <p>Arraste fotos aqui ou <button onclick="document.getElementById('input-fotos').click()">selecione</button></p>
-          <small>Máximo 5 fotos por vez · JPG, PNG, WEBP</small>
-        </div>
-        <div class="upload-preview" id="upload-preview"></div>
-        <button class="btn-primary" id="btn-upload" style="display:none">Enviar Fotos</button>
-      </div>
-    </section>
-
-    <!-- GALERIA -->
-    <section class="card" id="section-galeria">
-      <div class="section-header">
-        <h2>Galeria</h2>
-        <div class="filtros">
-          <button class="filtro-btn ativo" data-status="todos">Todas</button>
-          <button class="filtro-btn" data-status="pendente">Pendentes</button>
-          <button class="filtro-btn" data-status="ocr_feito">Processadas</button>
+      <div class="sidebar-section">
+        <h3>⬆ Upload</h3>
+        <div class="upload-area" id="upload-area">
+          <input type="file" id="input-fotos" multiple accept="image/*" hidden>
+          <div class="upload-placeholder" id="upload-placeholder">
+            <span class="upload-icon">📁</span>
+            <p><button onclick="document.getElementById('input-fotos').click()">Selecionar fotos</button></p>
+            <small>Máx 5 · JPG PNG WEBP</small>
+          </div>
+          <div class="upload-preview" id="upload-preview"></div>
+          <button class="btn-primary full-width" id="btn-upload" style="display:none">Enviar</button>
         </div>
       </div>
-      <div class="galeria-grid" id="galeria-grid">
-        <div class="loading">Carregando fotos...</div>
-      </div>
-    </section>
 
-    <!-- PAINEL OCR -->
-    <section class="card" id="section-ocr" style="display:none">
-      <div class="section-header">
+      <div class="sidebar-section">
+        <h3>🏷 Grupos</h3>
+        <div class="grupos-filtro sidebar-grupos" id="grupos-filtro"></div>
+      </div>
+
+      <div class="sidebar-section">
+        <h3>🔥 Top Palavras</h3>
+        <div class="top-palavras-sidebar" id="top-palavras-sidebar"></div>
+      </div>
+
+    </aside>
+
+    <!-- ÁREA PRINCIPAL -->
+    <div class="area-principal">
+
+      <!-- ABAS -->
+      <div class="abas">
+        <button class="aba ativa" data-aba="galeria" onclick="trocarAba('galeria', this)">📷 Galeria</button>
+        <button class="aba" data-aba="brain" onclick="trocarAba('brain', this)">🧠 Brain Map</button>
+      </div>
+
+      <!-- ABA GALERIA -->
+      <div class="aba-conteudo" id="aba-galeria">
+        <div class="galeria-toolbar">
+          <input type="text" id="input-busca" placeholder="🔍 Buscar nas fotos..." oninput="buscarFotos(this.value)">
+          <div class="filtros">
+            <button class="filtro-btn ativo" data-status="todos">Todas</button>
+            <button class="filtro-btn" data-status="pendente">Pendentes</button>
+            <button class="filtro-btn" data-status="ocr_feito">Processadas</button>
+          </div>
+        </div>
+        <div class="galeria-grid" id="galeria-grid">
+          <div class="loading">Carregando fotos...</div>
+        </div>
+      </div>
+
+      <!-- ABA BRAIN MAP -->
+      <div class="aba-conteudo" id="aba-brain" style="display:none">
+        <div class="word-cloud" id="word-cloud">
+          <p class="empty">Processe fotos para construir o Brain Map</p>
+        </div>
+        <div class="top-palavras" id="top-palavras"></div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- MODAL OCR -->
+  <div id="modal-ocr" class="modal-overlay" style="display:none" onclick="fecharOCROverlay(event)">
+    <div class="modal-box">
+      <div class="modal-header">
         <h2>Foto <span id="ocr-numero"></span></h2>
-        <button class="btn-fechar" onclick="fecharOCR()">✕</button>
+        <div class="modal-acoes-header">
+          <button class="btn-nav" id="btn-foto-anterior" onclick="navegarFoto(-1)">‹ Anterior</button>
+          <button class="btn-nav" id="btn-foto-proxima" onclick="navegarFoto(1)">Próxima ›</button>
+          <button class="btn-deletar" id="btn-deletar-foto">🗑 Deletar</button>
+          <button class="btn-fechar" onclick="fecharOCR()">✕</button>
+        </div>
       </div>
-      <div class="ocr-layout">
+      <div class="modal-body">
         <div class="ocr-imagem">
           <img id="ocr-img" src="" alt="Foto selecionada">
         </div>
         <div class="ocr-texto">
           <div class="ocr-acoes">
             <button class="btn-primary" id="btn-extrair">⚡ Extrair Texto</button>
-            <button class="btn-secondary" id="btn-limpar-texto" style="display:none">🧹 Limpar Seleção</button>
+            <button class="btn-secondary" id="btn-limpar-texto" style="display:none">🧹 Limpar</button>
             <button class="btn-success" id="btn-salvar-texto" style="display:none">💾 Salvar</button>
           </div>
           <div class="ocr-status" id="ocr-status"></div>
           <textarea id="ocr-area" placeholder="O texto extraído aparecerá aqui..."></textarea>
         </div>
       </div>
-    </section>
-
-    <!-- BRAIN MAP -->
-    <section class="card" id="section-brain">
-      <div class="section-header">
-        <h2>🧠 Brain Map</h2>
-        <button class="btn-secondary" onclick="carregarPalavras()">↻ Atualizar</button>
-      </div>
-      <div class="grupos-filtro" id="grupos-filtro"></div>
-      <div class="word-cloud" id="word-cloud">
-        <p class="empty">Processe fotos para construir o Brain Map</p>
-      </div>
-      <div class="top-palavras" id="top-palavras"></div>
-    </section>
-
-  </main>
+    </div>
+  </div>
 
   <script src="/static/app.js"></script>
 </body>

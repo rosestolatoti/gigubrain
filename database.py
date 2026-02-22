@@ -73,17 +73,55 @@ def init_db():
 
 # --- FOTOS ---
 
-def registrar_foto(numero: str, filename: str, filepath: str) -> int:
+def registrar_foto(numero: str, filename: str, filepath: str, hash_md5: str = None) -> int:
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
-        INSERT OR IGNORE INTO fotos (numero, filename, filepath, criado_em)
-        VALUES (?, ?, ?, ?)
-    """, (numero, filename, filepath, datetime.now().isoformat()))
+        INSERT OR IGNORE INTO fotos (numero, filename, filepath, hash_md5, criado_em)
+        VALUES (?, ?, ?, ?, ?)
+    """, (numero, filename, filepath, hash_md5, datetime.now().isoformat()))
     conn.commit()
     id_ = cur.lastrowid
     conn.close()
     return id_
+
+
+def foto_existe(filepath: str) -> bool:
+    conn = get_conn()
+    row = conn.execute("SELECT id FROM fotos WHERE filepath=?", (filepath,)).fetchone()
+    conn.close()
+    return row is not None
+
+
+def hash_existe(hash_md5: str) -> dict | None:
+    conn = get_conn()
+    row = conn.execute("SELECT numero, filename FROM fotos WHERE hash_md5=?", (hash_md5,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def deletar_foto_db(numero: str):
+    import json
+    conn = get_conn()
+
+    # Remover referência da tabela de palavras
+    palavras = conn.execute("SELECT id, fotos_ids, contagem FROM palavras").fetchall()
+    for p in palavras:
+        fotos = json.loads(p["fotos_ids"] or "[]")
+        if numero in fotos:
+            fotos.remove(numero)
+            nova_contagem = max(0, p["contagem"] - 1)
+            if nova_contagem == 0:
+                conn.execute("DELETE FROM palavras WHERE id=?", (p["id"],))
+            else:
+                conn.execute(
+                    "UPDATE palavras SET fotos_ids=?, contagem=? WHERE id=?",
+                    (json.dumps(fotos), nova_contagem, p["id"])
+                )
+
+    conn.execute("DELETE FROM fotos WHERE numero=?", (numero,))
+    conn.commit()
+    conn.close()
 
 
 def atualizar_ocr(numero: str, ocr_texto: str):

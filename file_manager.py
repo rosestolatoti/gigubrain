@@ -3,10 +3,10 @@ GigU Brain — File Manager
 Gerencia e renumera fotos automaticamente
 """
 
-import shutil
+import hashlib
 from pathlib import Path
 from config import FOTOS_DIR, EXTENSOES_VALIDAS
-from database import registrar_foto, listar_fotos
+from database import registrar_foto, listar_fotos, foto_existe, hash_existe
 
 
 def proximo_numero() -> str:
@@ -18,7 +18,7 @@ def proximo_numero() -> str:
 
 
 def registrar_fotos_existentes():
-    """Escaneia pasta fotos/ e registra no banco as que ainda não estão"""
+    """Escaneia pasta fotos/ e registra no banco apenas as que ainda não estão"""
     arquivos = sorted([
         f for f in FOTOS_DIR.iterdir()
         if f.suffix.lower() in EXTENSOES_VALIDAS
@@ -26,18 +26,30 @@ def registrar_fotos_existentes():
 
     registradas = 0
     for arquivo in arquivos:
-        numero = proximo_numero()
-        registrar_foto(numero, arquivo.name, str(arquivo))
-        registradas += 1
+        if not foto_existe(str(arquivo)):
+            numero = proximo_numero()
+            registrar_foto(numero, arquivo.name, str(arquivo))
+            registradas += 1
 
     return registradas
 
 
 def salvar_upload(file_bytes: bytes, filename: str) -> dict:
-    """Salva arquivo enviado via upload com número sequencial"""
+    """Salva arquivo enviado via upload com número sequencial e checagem de duplicata"""
     sufixo = Path(filename).suffix.lower()
     if sufixo not in EXTENSOES_VALIDAS:
         return {"sucesso": False, "erro": "Formato não suportado"}
+
+    # Checar duplicata por hash MD5
+    hash_md5 = hashlib.md5(file_bytes).hexdigest()
+    existente = hash_existe(hash_md5)
+    if existente:
+        return {
+            "sucesso": False,
+            "erro": f"Foto já existe no sistema como #{existente['numero']} ({existente['filename']})",
+            "duplicada": True,
+            "numero_existente": existente['numero']
+        }
 
     numero = proximo_numero()
     novo_nome = f"{numero}_{Path(filename).stem}{sufixo}"
@@ -46,7 +58,7 @@ def salvar_upload(file_bytes: bytes, filename: str) -> dict:
     with open(destino, "wb") as f:
         f.write(file_bytes)
 
-    registrar_foto(numero, novo_nome, str(destino))
+    registrar_foto(numero, novo_nome, str(destino), hash_md5=hash_md5)
 
     return {
         "sucesso": True,

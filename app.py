@@ -6,7 +6,7 @@ API e servidor principal
 from flask import Flask, request, jsonify, render_template, send_from_directory
 from pathlib import Path
 from config import FOTOS_DIR, STATIC_DIR
-from database import init_db, listar_fotos, buscar_foto, atualizar_ocr, atualizar_ocr_limpo, atualizar_palavras, top_palavras, listar_grupos
+from database import init_db, listar_fotos, buscar_foto, atualizar_ocr, atualizar_ocr_limpo, atualizar_palavras, top_palavras, listar_grupos, deletar_foto_db, get_conn
 from file_manager import salvar_upload, registrar_fotos_existentes
 from ocr_engine import processar_imagem
 import base64
@@ -105,6 +105,34 @@ def api_palavras():
 def api_grupos():
     grupos = listar_grupos()
     return jsonify(grupos)
+
+
+@app.route("/api/buscar", methods=["GET"])
+def api_buscar():
+    termo = request.args.get("q", "").strip()
+    if not termo or len(termo) < 2:
+        return jsonify([])
+    conn = get_conn()
+    rows = conn.execute("""
+        SELECT * FROM fotos 
+        WHERE ocr_limpo LIKE ? OR ocr_texto LIKE ?
+        ORDER BY numero
+    """, (f"%{termo}%", f"%{termo}%")).fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route("/api/foto/<numero>", methods=["DELETE"])
+def api_deletar_foto(numero):
+    foto = buscar_foto(numero)
+    if not foto:
+        return jsonify({"erro": "Não encontrada"}), 404
+    try:
+        Path(foto["filepath"]).unlink(missing_ok=True)
+    except Exception:
+        pass
+    deletar_foto_db(numero)
+    return jsonify({"sucesso": True})
 
 
 # ─── START ──────────────────────────────────────────────

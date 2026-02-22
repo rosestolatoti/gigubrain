@@ -3,114 +3,181 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>GigU Brain</title>
+  <title>GigU Brain — Leitor de Contexto</title>
   <link rel="stylesheet" href="/static/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
 
-  <header>
-    <div class="logo">
-      <span class="logo-icon">🧠</span>
-      <span class="logo-text">GigU <strong>Brain</strong></span>
+  <header class="header">
+    <div class="header-left">
+      <div class="logo">
+        <span class="logo-icon">🧠</span>
+        <span class="logo-text">GigU <strong>Brain</strong></span>
+      </div>
     </div>
-    <div class="header-stats">
-      <span id="stat-fotos">— fotos</span>
-      <span id="stat-palavras">— palavras</span>
+    <div class="header-center">
+      <div class="search-box">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+        </svg>
+        <input type="text" id="input-busca" placeholder="Buscar nas fotos..." oninput="buscarFotos(this.value)">
+      </div>
     </div>
-    <button class="btn-tema" onclick="toggleThema()" id="btn-tema" title="Alternar tema">
-      <span id="tema-icon">🌙</span>
-    </button>
+    <div class="header-right">
+      <span class="stat-badge" id="stat-fotos">0 fotos</span>
+      <span class="stat-badge" id="stat-palavras">0 palavras</span>
+      <button class="btn-theme" onclick="toggleTheme()" id="btn-theme" title="Alternar tema">
+        <span id="theme-icon">🌙</span>
+      </button>
+    </div>
   </header>
 
-  <main>
-    <!-- SIDEBAR -->
+  <main class="main-container">
+    
     <aside class="sidebar">
-
       <div class="sidebar-section">
-        <h3>⬆ Upload</h3>
-        <div class="upload-area" id="upload-area">
+        <h3 class="section-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Importar Fotos
+        </h3>
+        <div class="upload-zone" id="upload-zone">
           <input type="file" id="input-fotos" multiple accept="image/*" hidden>
-          <div class="upload-placeholder" id="upload-placeholder">
-            <span class="upload-icon">📁</span>
-            <p><button onclick="document.getElementById('input-fotos').click()">Selecionar fotos</button></p>
-            <small>Máx 5 · JPG PNG WEBP</small>
+          <div class="upload-content" id="upload-content">
+            <div class="upload-icon-area">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <polyline points="21 15 16 10 5 21"/>
+              </svg>
+            </div>
+            <p class="upload-text">Arraste fotos aqui ou</p>
+            <button class="btn-select" onclick="document.getElementById('input-fotos').click()">
+              Selecionar Arquivos
+            </button>
+            <small class="upload-hint">JPG, PNG, WEBP •Máx 5 por vez</small>
           </div>
-          <div class="upload-preview" id="upload-preview"></div>
-          <button class="btn-primary full-width" id="btn-upload" style="display:none">Enviar</button>
+          <div class="upload-preview-area" id="upload-preview-area" style="display:none">
+            <div class="preview-grid" id="preview-grid"></div>
+            <button class="btn-upload" id="btn-upload" onclick="enviarFotos()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              Enviar Fotos
+            </button>
+          </div>
         </div>
       </div>
 
       <div class="sidebar-section">
-        <h3>🏷 Grupos</h3>
-        <div class="grupos-filtro sidebar-grupos" id="grupos-filtro"></div>
+        <h3 class="section-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+          Categorias
+        </h3>
+        <div class="grupos-list" id="grupos-filtro"></div>
       </div>
 
       <div class="sidebar-section">
-        <h3>🔥 Top Palavras</h3>
-        <div class="top-palavras-sidebar" id="top-palavras-sidebar"></div>
+        <h3 class="section-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          Palavras-chave
+        </h3>
+        <div class="palavras-list" id="top-palavras-sidebar"></div>
       </div>
 
     </aside>
 
-    <!-- ÁREA PRINCIPAL -->
-    <div class="area-principal">
-
-      <!-- ABAS -->
-      <div class="abas">
-        <button class="aba ativa" data-aba="galeria" onclick="trocarAba('galeria', this)">📷 Galeria</button>
-        <button class="aba" data-aba="brain" onclick="trocarAba('brain', this)">🧠 Brain Map</button>
+    <div class="content">
+      <div class="tabs">
+        <button class="tab active" data-tab="galeria" onclick="trocarAba('galeria', this)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          Galeria
+        </button>
+        <button class="tab" data-tab="brain" onclick="trocarAba('brain', this)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10H12V2z"/><path d="M12 2a10 10 0 0 1 10 10"/><path d="M12 12l-8.5 8.5"/></svg>
+          Brain Map
+        </button>
+        <div class="tabs-filters">
+          <button class="filter-btn active" data-status="todos" onclick="filtrarStatus('todos', this)">Todas</button>
+          <button class="filter-btn" data-status="pendente" onclick="filtrarStatus('pendente', this)">Pendentes</button>
+          <button class="filter-btn" data-status="ocr_feito" onclick="filtrarStatus('ocr_feito', this)">Processadas</button>
+        </div>
       </div>
 
-      <!-- ABA GALERIA -->
-      <div class="aba-conteudo" id="aba-galeria">
-        <div class="galeria-toolbar">
-          <input type="text" id="input-busca" placeholder="🔍 Buscar nas fotos..." oninput="buscarFotos(this.value)">
-          <div class="filtros">
-            <button class="filtro-btn ativo" data-status="todos">Todas</button>
-            <button class="filtro-btn" data-status="pendente">Pendentes</button>
-            <button class="filtro-btn" data-status="ocr_feito">Processadas</button>
+      <div class="tab-content" id="tab-galeria">
+        <div class="galeria" id="galeria-grid">
+          <div class="empty-state">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+              <circle cx="8.5" cy="8.5" r="1.5"/>
+              <polyline points="21 15 16 10 5 21"/>
+            </svg>
+            <p>Nenhuma foto encontrada</p>
           </div>
         </div>
-        <div class="galeria-grid" id="galeria-grid">
-          <div class="loading">Carregando fotos...</div>
-        </div>
       </div>
 
-      <!-- ABA BRAIN MAP -->
-      <div class="aba-conteudo" id="aba-brain" style="display:none">
-        <div class="word-cloud" id="word-cloud">
-          <p class="empty">Processe fotos para construir o Brain Map</p>
+      <div class="tab-content" id="tab-brain" style="display:none">
+        <div class="brain-map">
+          <div class="word-cloud" id="word-cloud">
+            <div class="empty-state">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+                <path d="M12 2a10 10 0 1 0 10 10H12V2z"/>
+              </svg>
+              <p>Processe fotos para construir o Brain Map</p>
+            </div>
+          </div>
+          <div class="palavras-grid" id="top-palavras"></div>
         </div>
-        <div class="top-palavras" id="top-palavras"></div>
       </div>
 
     </div>
   </main>
 
-  <!-- MODAL OCR -->
-  <div id="modal-ocr" class="modal-overlay" style="display:none" onclick="fecharOCROverlay(event)">
-    <div class="modal-box">
+  <div class="modal" id="modal-ocr" style="display:none">
+    <div class="modal-backdrop" onclick="fecharOCR()"></div>
+    <div class="modal-container">
       <div class="modal-header">
-        <h2>Foto <span id="ocr-numero"></span></h2>
-        <div class="modal-acoes-header">
-          <button class="btn-nav" id="btn-foto-anterior" onclick="navegarFoto(-1)">‹ Anterior</button>
-          <button class="btn-nav" id="btn-foto-proxima" onclick="navegarFoto(1)">Próxima ›</button>
-          <button class="btn-deletar" id="btn-deletar-foto">🗑 Deletar</button>
-          <button class="btn-fechar" onclick="fecharOCR()">✕</button>
+        <div class="modal-title">
+          <span class="foto-badge" id="ocr-numero">#000</span>
+          <span class="foto-status" id="ocr-status-badge"></span>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-nav" onclick="navegarFoto(-1)" title="Foto anterior">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <button class="btn-nav" onclick="navegarFoto(1)" title="Próxima foto">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+          <button class="btn-delete" onclick="deletarFoto()" title="Deletar foto">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          </button>
+          <button class="btn-close" onclick="fecharOCR()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
         </div>
       </div>
       <div class="modal-body">
-        <div class="ocr-imagem">
-          <img id="ocr-img" src="" alt="Foto selecionada">
+        <div class="modal-image">
+          <img id="ocr-img" src="" alt="Foto">
         </div>
-        <div class="ocr-texto">
-          <div class="ocr-acoes">
-            <button class="btn-primary" id="btn-extrair">⚡ Extrair Texto</button>
-            <button class="btn-secondary" id="btn-limpar-texto" style="display:none">🧹 Limpar</button>
-            <button class="btn-success" id="btn-salvar-texto" style="display:none">💾 Salvar</button>
+        <div class="modal-text">
+          <div class="ocr-actions">
+            <button class="btn-primary" id="btn-extrair" onclick="extrairOCR()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              Extrair Texto
+            </button>
+            <button class="btn-secondary" id="btn-limpar" onclick="limparTexto()" style="display:none">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+              Limpar
+            </button>
+            <button class="btn-success" id="btn-salvar" onclick="salvarTexto()" style="display:none">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              Salvar
+            </button>
           </div>
           <div class="ocr-status" id="ocr-status"></div>
-          <textarea id="ocr-area" placeholder="O texto extraído aparecerá aqui..."></textarea>
+          <textarea id="ocr-area" placeholder="Clique em 'Extrair Texto' para processar a imagem..."></textarea>
         </div>
       </div>
     </div>
